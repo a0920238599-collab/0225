@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { OzonCredentials, OzonPosting } from './types';
-import { fetchOrders, generateMockPostings } from './services/ozonService';
+import { fetchOrders } from './services/ozonService';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import Settings from './components/Settings';
@@ -64,17 +64,6 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const loadMockData = () => {
-      setLoading(true);
-      setError(null);
-      setTimeout(() => {
-          const mock = generateMockPostings(250);
-          setOrders(mock);
-          setToPackOrders(mock.filter(o => o.status === 'awaiting_packaging'));
-          setLoading(false);
-      }, 500);
-  };
-
   // Fetch data when credentials change or are loaded
   useEffect(() => {
     if (credentials && currentView === 'dashboard') {
@@ -82,10 +71,25 @@ const App: React.FC = () => {
     }
   }, [credentials, currentView, dateRange, loadData]);
 
-  const handleSaveSettings = (creds: OzonCredentials) => {
-    setCredentials(creds);
-    localStorage.setItem('ozon_creds', JSON.stringify(creds));
-    setCurrentView('dashboard');
+  const handleSaveSettings = async (creds: OzonCredentials) => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Test credentials by fetching 1 day of data
+      const to = new Date();
+      const from = new Date();
+      from.setDate(to.getDate() - 1);
+      await fetchOrders(creds, from, to);
+      
+      // If successful, save and switch view
+      setCredentials(creds);
+      localStorage.setItem('ozon_creds', JSON.stringify(creds));
+      setCurrentView('dashboard');
+    } catch (err: any) {
+      alert("登录失败，请检查 Client ID 和 API Key 是否正确。\n" + (err.message || ""));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSaveLibrary = (newImages: Record<string, string>) => {
@@ -175,10 +179,6 @@ const App: React.FC = () => {
                             <div>
                                 <h3 className="font-medium text-red-800">无法加载数据</h3>
                                 <p className="text-sm text-red-600 mt-1">{error}</p>
-                                <p className="text-xs text-red-500 mt-2">
-                                    注意：Ozon API 通常禁止直接从浏览器访问 (CORS)。
-                                    如果您的密钥正确但仍看到此错误，请尝试加载演示数据。
-                                </p>
                             </div>
                         </div>
                         <div className="flex gap-3 ml-8">
@@ -187,12 +187,6 @@ const App: React.FC = () => {
                                 className="px-4 py-2 bg-white border border-red-200 text-red-700 rounded-md text-sm hover:bg-red-50 font-medium"
                             >
                                 重试
-                            </button>
-                            <button 
-                                onClick={loadMockData}
-                                className="px-4 py-2 bg-red-100 text-red-800 rounded-md text-sm hover:bg-red-200 font-medium"
-                            >
-                                加载演示数据
                             </button>
                         </div>
                     </div>
